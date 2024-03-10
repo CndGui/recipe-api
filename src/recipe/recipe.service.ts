@@ -33,54 +33,41 @@ export class RecipeService {
         const recipe = await this.service.recipe.create({
             data: {
                 name: data.name,
-                description: data.description
-            }
+                description: data.description,
+                ingredients: {
+                    create: data.ingredients.map((ingredient) => ({
+                        name: ingredient
+                    }))
+                }
+            },
+            include: { ingredients: true }
         })
 
-        for (const ingredientName of data.ingredients) {
-            await this.service.ingredient.create({
-                data: {
-                    name: ingredientName,
-                    recipeId: recipe.id
-                }
-            })
-        }
-
-        return await this.service.recipe.findUnique({ where: { id: recipe.id }, include: { ingredients: true } })
+        return recipe
     }
 
     async update(id: number, data: RecipeUpdateDTO): Promise<RecipeResponseDTO> {
-        const recipe = await this.service.recipe.findUnique({ where: { id } })
+        const recipe = await this.service.recipe.findUnique({ where: { id }, include: { ingredients: true } })
         if (recipe == null) {
             throw new HttpException(`The recipe with ID ${id} does not exist!`, HttpStatus.NOT_FOUND)
         }
 
-        await this.service.recipe.update({
+        const updatedRecipe = await this.service.recipe.update({
             where: { id },
             data: {
                 name: data.name ? data.name : recipe.name,
                 description: data.description ? data.description : recipe.description,
-            }
+                ingredients: data.ingredients?.length > 0 && {
+                    delete: recipe.ingredients,
+                    create: data.ingredients.map(ingredient => ({
+                        name: ingredient
+                    }))
+                }
+            },
+            include: { ingredients: true }
         })
 
-        if (data.ingredients?.length > 0) {
-            await this.service.ingredient.deleteMany({
-                where: {
-                    recipeId: recipe.id
-                }
-            })
-
-            for (let ingredientName of data.ingredients) {
-                await this.service.ingredient.create({
-                    data: {
-                        name: ingredientName,
-                        recipeId: recipe.id
-                    }
-                })
-            }
-        }
-
-        return await this.service.recipe.findUnique({ where: { id: recipe.id }, include: { ingredients: true } })
+        return updatedRecipe
     }
 
     async delete(id: number): Promise<void> {
